@@ -1,0 +1,41 @@
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+
+# Application binaries
+/vanta
+/cmd/vanta/vanta
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build and test artifacts
+*.test
+*.out
+coverage.*
+/coverage/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Logs and temporary files
+*.log
+/tmp/
+*.tmp
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
