@@ -8,7 +8,7 @@ Vanta aims to create a large-scale community platform where people can come toge
 
 The goal is to grow into a platform capable of supporting a high volume of users and content through features such as user profiles, communities, posts, comments, interactions, and moderation systems. The current authentication infrastructure is one of the first steps toward this vision.
 
-> **Status:** The project is under development. Registration and login handlers have been implemented; however, database initialization, route registrations, and HTTP server setup in `cmd/vanta/main.go` have not yet been completed.
+> **Status:** The project is under development. Registration, login, and refresh token rotation handlers have been implemented; however, database initialization and HTTP server setup in `cmd/vanta/main.go` have not yet been completed.
 
 ## Current Features
 
@@ -16,6 +16,8 @@ The goal is to grow into a platform capable of supporting a high volume of users
 - User registration and queries with PostgreSQL
 - Access token generation with JWT, valid for 24 hours
 - Refresh token generation, valid for 7 days, with only its SHA-256 hash stored in the database
+- Atomic refresh token rotation that invalidates the old token and issues a new token pair
+- Bearer JWT authentication middleware with request-scoped claims access
 - Route organization under `/api/v1` with Chi router
 - Separation of handler, repository, model, and database layers
 - Parameterized SQL queries and username uniqueness checks
@@ -130,6 +132,79 @@ A successful login returns `200 OK` with a JWT and a refresh token valid for 7 d
 
 An invalid username or password returns `401 Unauthorized` with an `invalid_credentials` response.
 
+### Refresh Token Rotation
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refresh_token": "current-refresh-token"
+}
+```
+
+A valid refresh token is deleted and replaced with a new one in a single database transaction. The response contains a new access token and refresh token:
+
+```json
+{
+  "token": "new-signed-jwt-token",
+  "refresh_token": "new-random-refresh-token"
+}
+```
+
+The old refresh token cannot be used again. An unknown, expired, or previously rotated token returns `401 Unauthorized` with an `invalid_refresh_token` response.
+
+### Current User
+
+```http
+GET /api/v1/me
+Authorization: Bearer signed-jwt-token
+```
+
+The protected endpoint reads the user ID from the access token claims and returns the user's current account data:
+
+```json
+{
+  "id": 1,
+  "name": "Ada Lovelace",
+  "username": "ada"
+}
+```
+
+The password hash is never included in the response. A missing or invalid access token returns `401 Unauthorized`; if the user no longer exists, the handler returns `404 Not Found` with a `user_not_found` response.
+
+## Protecting Routes
+
+Use `AuthMiddleware` with Chi's `r.With(...)` method to protect a route:
+
+```go
+r.With(middlewares.AuthMiddleware).Get("/me", auth.GetMe)
+```
+
+Clients must send the access token in the Authorization header:
+
+```http
+Authorization: Bearer signed-jwt-token
+```
+
+The middleware accepts HS256 tokens issued by `vanta` and requires a valid expiration claim. Inside a protected handler, retrieve the claims with `GetClaims`:
+
+```go
+claims, ok := middlewares.GetClaims(r)
+
+if !ok {
+    http.Error(w, "unauthorized", http.StatusUnauthorized)
+    return
+}
+
+userID := claims.UserID
+username := claims.Username
+```
+
+Missing, invalid, or expired access tokens are rejected with `401 Unauthorized` and an `invalid_token` response.
+
 ## Running
 
 Once the application startup flow is complete, the project can be run with:
@@ -138,7 +213,7 @@ Once the application startup flow is complete, the project can be run with:
 go run ./cmd/vanta
 ```
 
-Currently, `main.go` does not call `store.ConnectDatabase()` or `http.ListenAndServe()`, so this command does not start an HTTP server. Additionally, the `/api/v1/auth/login` route must be registered with `auth.LoginHandler` for the login endpoint to be available.
+Currently, `main.go` does not call `store.ConnectDatabase()` or `http.ListenAndServe()`, so this command does not start an HTTP server.
 
 ## Checks
 
@@ -155,7 +230,8 @@ go build ./...
 .
 ├── cmd/vanta/                 # Application entry point
 ├── internal/
-│   ├── handlers/auth/         # Registration and login HTTP handlers
+│   ├── handlers/auth/         # Authentication HTTP handlers
+│   ├── middlewares/           # JWT authentication middleware
 │   ├── models/                # Request, user, and JWT models
 │   ├── repository/            # User database operations
 │   └── store/                 # PostgreSQL connection and table setup

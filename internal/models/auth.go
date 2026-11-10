@@ -13,6 +13,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+// RefreshRequest contains the refresh token that will be rotated.
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // User contains the account data needed during authentication.
 type User struct {
 	ID           int64  `json:"id"`

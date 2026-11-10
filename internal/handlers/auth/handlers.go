@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coderianx/Vanta/internal/middlewares"
 	"github.com/coderianx/Vanta/internal/models"
 	"github.com/coderianx/Vanta/internal/repository"
 	"github.com/golang-jwt/jwt/v5"
@@ -265,4 +266,190 @@ func LoginHandler(
 		"token":         signedToken,
 		"refresh_token": refreshToken,
 	})
+}
+
+// RefreshHandler rotates a refresh token and returns a new token pair.
+func RefreshHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "method_not_allowed",
+		})
+
+		return
+	}
+
+	var req models.RefreshRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "invalid_request",
+		})
+
+		return
+	}
+
+	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+
+	if req.RefreshToken == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "invalid_request",
+		})
+
+		return
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	if jwtSecret == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
+	newRefreshToken, err := generateRefreshToken()
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
+	now := time.Now()
+
+	user, err := repository.RotateRefreshToken(
+		r.Context(),
+		req.RefreshToken,
+		newRefreshToken,
+		now.Add(7*24*time.Hour),
+	)
+
+	if errors.Is(err, repository.ErrInvalidRefreshToken) {
+		w.WriteHeader(http.StatusUnauthorized)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "invalid_refresh_token",
+		})
+
+		return
+	}
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
+	claims := models.Claims{
+		UserID:   user.ID,
+		Username: user.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "vanta",
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(
+				now.Add(24 * time.Hour),
+			),
+		},
+	}
+
+	token := jwt.NewWithClaims(
+		jwt.SigningMethodHS256,
+		claims,
+	)
+
+	signedToken, err := token.SignedString(
+		[]byte(jwtSecret),
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"token":         signedToken,
+		"refresh_token": newRefreshToken,
+	})
+}
+
+// GetMe returns the authenticated user's current account information.
+func GetMe(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set("Content-Type", "application/json")
+
+	claims, ok := middlewares.GetClaims(r)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "invalid_token",
+		})
+
+		return
+	}
+
+	user, err := repository.GetUserByID(
+		r.Context(),
+		claims.UserID,
+	)
+
+	if errors.Is(err, repository.ErrUserNotFound) {
+		w.WriteHeader(http.StatusNotFound)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "user_not_found",
+		})
+
+		return
+	}
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(user)
 }
