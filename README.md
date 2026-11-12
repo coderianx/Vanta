@@ -163,17 +163,91 @@ GET /api/v1/me
 Authorization: Bearer signed-jwt-token
 ```
 
-The protected endpoint reads the user ID from the access token claims and returns the user's current account data:
+The protected endpoint reads the user ID from the access token claims and returns the user's current account data together with their follower and following counts:
 
 ```json
 {
   "id": 1,
   "name": "Ada Lovelace",
-  "username": "ada"
+  "username": "ada",
+  "follower_count": 120,
+  "following_count": 80
 }
 ```
 
 The password hash is never included in the response. A missing or invalid access token returns `401 Unauthorized`; if the user no longer exists, the handler returns `404 Not Found` with a `user_not_found` response.
+
+### Follow a User
+
+```http
+POST /api/v1/users/{username}/follow
+Authorization: Bearer signed-jwt-token
+```
+
+A new follow relationship returns `201 Created`. If the relationship already exists, the operation remains idempotent and returns `200 OK`:
+
+```json
+{
+  "following": true,
+  "username": "ada"
+}
+```
+
+Attempting to follow yourself returns `400 Bad Request` with a `cannot_follow_self` response. An unknown target username returns `404 Not Found`.
+
+### Unfollow a User
+
+```http
+DELETE /api/v1/users/{username}/follow
+Authorization: Bearer signed-jwt-token
+```
+
+The operation is idempotent and returns `200 OK` whether or not the follow relationship existed:
+
+```json
+{
+  "following": false,
+  "username": "ada"
+}
+```
+
+### Follow Status
+
+```http
+GET /api/v1/users/{username}/follow-status
+Authorization: Bearer signed-jwt-token
+```
+
+The response shows both follow directions and whether the relationship is mutual:
+
+```json
+{
+  "following": true,
+  "followed_by": false,
+  "mutual": false,
+  "username": "ada"
+}
+```
+
+### Public User Profile
+
+```http
+GET /api/v1/users/{username}
+```
+
+This endpoint does not require authentication. It returns public account data and follow counts without exposing the password hash:
+
+```json
+{
+  "id": 1,
+  "name": "Ada Lovelace",
+  "username": "ada",
+  "follower_count": 120,
+  "following_count": 80
+}
+```
+
+An unknown username returns `404 Not Found` with a `user_not_found` response.
 
 ## Protecting Routes
 
@@ -231,6 +305,8 @@ go build ./...
 ├── cmd/vanta/                 # Application entry point
 ├── internal/
 │   ├── handlers/auth/         # Authentication HTTP handlers
+│   ├── handlers/follow/       # Follow relationship HTTP handlers
+│   ├── handlers/users/        # Public user profile HTTP handlers
 │   ├── middlewares/           # JWT authentication middleware
 │   ├── models/                # Request, user, and JWT models
 │   ├── repository/            # User database operations

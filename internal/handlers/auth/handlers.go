@@ -449,7 +449,28 @@ func GetMe(
 		return
 	}
 
+	followerCount, followingCount, err := repository.GetFollowCounts(
+		r.Context(),
+		user.ID,
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "internal_server_error",
+		})
+
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":              user.ID,
+		"name":            user.Name,
+		"username":        user.Username,
+		"follower_count":  followerCount,
+		"following_count": followingCount,
+	})
 }

@@ -68,5 +68,35 @@ func CreateTables() error {
 		return fmt.Errorf("store: create 'refresh_tokens' table error: %w", err)
 	}
 
+	_, err = DB.Exec(
+		context.Background(),
+		`
+		CREATE TABLE IF NOT EXISTS follows(
+			follower_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			followed_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (follower_id, followed_id),
+			CONSTRAINT follows_no_self_follow
+				CHECK (follower_id <> followed_id)
+		);
+		`,
+	)
+
+	if err != nil {
+		return fmt.Errorf("store: create 'follows' table error: %w", err)
+	}
+
+	_, err = DB.Exec(
+		context.Background(),
+		`
+		CREATE INDEX IF NOT EXISTS idx_follows_followed_id
+			ON follows (followed_id);
+		`,
+	)
+
+	if err != nil {
+		return fmt.Errorf("store: create 'follows' index error: %w", err)
+	}
+
 	return nil
 }

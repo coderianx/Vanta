@@ -4,6 +4,8 @@ import (
 	"log"
 
 	"github.com/coderianx/Vanta/internal/handlers/auth"
+	"github.com/coderianx/Vanta/internal/handlers/follow"
+	"github.com/coderianx/Vanta/internal/handlers/users"
 	"github.com/coderianx/Vanta/internal/middlewares"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -29,5 +31,19 @@ func main() {
 		r.With(
 			middlewares.AuthMiddleware,
 		).Get("/me", auth.GetMe)
+
+		r.Get("/users/{username}", users.GetUserProfileHandler)
+
+		r.With(
+			middlewares.AuthMiddleware,
+		).Post("/users/{username}/follow", follow.FollowHandler)
+
+		r.With(
+			middlewares.AuthMiddleware,
+		).Delete("/users/{username}/follow", follow.UnfollowHandler)
+
+		r.With(
+			middlewares.AuthMiddleware,
+		).Get("/users/{username}/follow-status", follow.GetFollowStatusHandler)
 	})
 }
