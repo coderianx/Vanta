@@ -42,7 +42,7 @@ func CreateTables() error {
 			name TEXT NOT NULL,
             username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
-            created_at TIMESTAMPZ NOT NULL DEFAULT NOW()
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 		`,
 	)
