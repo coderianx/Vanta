@@ -249,6 +249,58 @@ This endpoint does not require authentication. It returns public account data an
 
 An unknown username returns `404 Not Found` with a `user_not_found` response.
 
+### Create a Pulse
+
+```http
+POST /api/v1/pulses
+Authorization: Bearer signed-jwt-token
+Content-Type: application/json
+```
+
+```json
+{
+  "content": "Hello, Vanta!",
+  "tags": ["introduction", "community"]
+}
+```
+
+The authenticated user's ID is taken from the access token. Empty content is rejected with `400 Bad Request` and a `content_is_required` response. A successful request returns `201 Created`:
+
+```json
+{
+  "id": 1,
+  "user_id": 1,
+  "content": "Hello, Vanta!",
+  "tags": ["introduction", "community"],
+  "created_at": "2026-01-01T12:00:00Z"
+}
+```
+
+### Get a User's Pulses
+
+```http
+GET /api/v1/users/{username}/pulses
+```
+
+This public endpoint returns the user's pulses as a JSON array, ordered from newest to oldest. It returns an empty array when the user has not published any pulses. An unknown username returns `404 Not Found` with a `user_not_found` response.
+
+### Get a Pulse by ID
+
+```http
+GET /api/v1/pulses/{id}
+```
+
+This public endpoint returns the requested pulse without requiring authentication. A non-numeric or non-positive ID returns `400 Bad Request` with an `invalid_pulse_id` response. If the pulse does not exist, it returns `404 Not Found` with a `pulse_not_found` response.
+
+### Delete My Pulse
+
+```http
+DELETE /api/v1/pulses/{id}
+Authorization: Bearer signed-jwt-token
+```
+
+The authenticated user can delete only their own pulse. The database query checks both the pulse ID and the owner ID. Successful deletion returns `204 No Content`. A pulse that does not exist or belongs to another user returns `404 Not Found` with a `pulse_not_found` response.
+
 ## Protecting Routes
 
 Use `AuthMiddleware` with Chi's `r.With(...)` method to protect a route:
@@ -306,6 +358,7 @@ go build ./...
 ├── internal/
 │   ├── handlers/auth/         # Authentication HTTP handlers
 │   ├── handlers/follow/       # Follow relationship HTTP handlers
+│   ├── handlers/pulse/        # Pulse publishing HTTP handlers
 │   ├── handlers/users/        # Public user profile HTTP handlers
 │   ├── middlewares/           # JWT authentication middleware
 │   ├── models/                # Request, user, and JWT models

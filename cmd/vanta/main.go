@@ -5,6 +5,7 @@ import (
 
 	"github.com/coderianx/Vanta/internal/handlers/auth"
 	"github.com/coderianx/Vanta/internal/handlers/follow"
+	"github.com/coderianx/Vanta/internal/handlers/pulse"
 	"github.com/coderianx/Vanta/internal/handlers/users"
 	"github.com/coderianx/Vanta/internal/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -33,6 +34,7 @@ func main() {
 		).Get("/me", auth.GetMe)
 
 		r.Get("/users/{username}", users.GetUserProfileHandler)
+		r.Get("/users/{username}/pulses", pulse.GetUserPulses)
 
 		r.With(
 			middlewares.AuthMiddleware,
@@ -45,5 +47,15 @@ func main() {
 		r.With(
 			middlewares.AuthMiddleware,
 		).Get("/users/{username}/follow-status", follow.GetFollowStatusHandler)
+
+		r.Get("/pulses/{id}", pulse.GetPulseByID)
+
+		r.With(
+			middlewares.AuthMiddleware,
+		).Post("/pulses", pulse.CreateNewPulse)
+
+		r.With(
+			middlewares.AuthMiddleware,
+		).Delete("/pulses/{id}", pulse.DeleteMyPulse)
 	})
 }

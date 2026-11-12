@@ -98,5 +98,38 @@ func CreateTables() error {
 		return fmt.Errorf("store: create 'follows' index error: %w", err)
 	}
 
+	_, err = DB.Exec(
+		context.Background(),
+		`
+		CREATE TABLE IF NOT EXISTS pulses (
+		    id BIGSERIAL PRIMARY KEY,
+			user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		    content TEXT NOT NULL,
+		    tags TEXT[] NOT NULL DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		`,
+	)
+
+	if err != nil {
+		return fmt.Errorf(
+			"store: create 'pulses' table error: %w", err,
+		)
+	}
+
+	_, err = DB.Exec(
+		context.Background(),
+		`
+		CREATE INDEX IF NOT EXISTS idx_pulses_user_id_created_at
+			ON pulses (user_id, created_at DESC);
+		`,
+	)
+
+	if err != nil {
+		return fmt.Errorf(
+			"store: create 'pulses' index error: %w", err,
+		)
+	}
+
 	return nil
 }
